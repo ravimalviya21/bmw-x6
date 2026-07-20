@@ -1,5 +1,6 @@
 import React from 'react';
 import { STATIC_FEATURES } from '../../constant';
+import { getS3FrameUrl } from '../../config/s3';
 
 const StaticFallback = ({ onScrollToBooking }) => {
   return (
@@ -17,7 +18,7 @@ const StaticFallback = ({ onScrollToBooking }) => {
       </div>
 
       <img
-        src="/batch-1/ezgif-frame-001.jpg"
+        src={getS3FrameUrl(1)}
         alt="X6 Series Mountain Bike Side Profile"
         className="static-hero-img"
       />

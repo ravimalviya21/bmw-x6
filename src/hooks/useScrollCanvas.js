@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { TOTAL_FRAMES } from '../constant';
+import { getS3FrameUrl } from '../config/s3';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -58,12 +59,7 @@ const useScrollCanvas = (containerRef, canvasRef) => {
 
     for (let i = 1; i <= TOTAL_FRAMES; i++) {
       const img = new Image();
-      const frameString = String(i).padStart(3, '0');
-      if (i <= 151) {
-        img.src = `/batch-1/ezgif-frame-${frameString}.jpg`;
-      } else {
-        img.src = `/batch-2/ezgif-frame-${frameString}.jpg`;
-      }
+      img.src = getS3FrameUrl(i);
       img.onload = handleImageLoad;
       img.onerror = handleImageError;
       loadedImages.push(img);

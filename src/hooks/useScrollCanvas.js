@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { TOTAL_FRAMES } from '../constant';
-import { getBatchS3PresignedUrls } from '../config/s3';
+import { getFrameUrls } from '../config/s3';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -33,48 +33,46 @@ const useScrollCanvas = (containerRef, canvasRef) => {
       return;
     }
 
-    let loadedCount = 0;
+    // A handful of dropped frames is survivable — the canvas just holds the
+    // previous one. Only bail out when enough of the sequence is missing that
+    // the animation would visibly break.
+    const FAILURE_TOLERANCE = Math.ceil(TOTAL_FRAMES * 0.05);
+
+    let settledCount = 0;
+    let failedCount = 0;
     const loadedImages = [];
     let isMounted = true;
 
-    const handleImageLoad = () => {
+    const handleSettled = () => {
       if (!isMounted) return;
-      loadedCount++;
-      const currentProgress = Math.round((loadedCount / TOTAL_FRAMES) * 100);
-      setProgress(currentProgress);
+      settledCount++;
+      setProgress(Math.round((settledCount / TOTAL_FRAMES) * 100));
 
-      if (loadedCount === TOTAL_FRAMES) {
+      if (failedCount > FAILURE_TOLERANCE) {
+        setLoadError(true);
+        setLoading(false);
+        return;
+      }
+
+      if (settledCount === TOTAL_FRAMES) {
         setImages(loadedImages);
         setLoading(false);
       }
     };
 
-    const handleImageError = (err) => {
-      console.error("Failed to load image frame", err);
-      if (isMounted) {
-        setLoadError(true);
-        setLoading(false);
-      }
+    const handleImageError = (event) => {
+      failedCount++;
+      console.error("Failed to load image frame", event?.target?.src);
+      handleSettled();
     };
 
-    getBatchS3PresignedUrls(TOTAL_FRAMES)
-      .then((signedUrls) => {
-        if (!isMounted) return;
-        signedUrls.forEach((url) => {
-          const img = new Image();
-          img.src = url;
-          img.onload = handleImageLoad;
-          img.onerror = handleImageError;
-          loadedImages.push(img);
-        });
-      })
-      .catch((err) => {
-        console.error("Failed to generate S3 presigned URLs", err);
-        if (isMounted) {
-          setLoadError(true);
-          setLoading(false);
-        }
-      });
+    getFrameUrls(TOTAL_FRAMES).forEach((url) => {
+      const img = new Image();
+      img.src = url;
+      img.onload = handleSettled;
+      img.onerror = handleImageError;
+      loadedImages.push(img);
+    });
 
     return () => {
       isMounted = false;
@@ -83,10 +81,10 @@ const useScrollCanvas = (containerRef, canvasRef) => {
 
   const drawFrame = useCallback((index) => {
     const canvas = canvasRef.current;
-    if (!canvas || !images[index]) return;
+    const img = images[index];
+    if (!canvas || !img || !img.naturalWidth) return;
 
     const ctx = canvas.getContext('2d');
-    const img = images[index];
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const rect = canvas.getBoundingClientRect();

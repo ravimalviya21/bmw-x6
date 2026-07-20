@@ -1,13 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { STATIC_FEATURES } from '../../constant';
-import { getS3PresignedUrl } from '../../config/s3';
+import { getFrameUrl } from '../../config/s3';
 
 const StaticFallback = ({ onScrollToBooking }) => {
-  const [heroImgUrl, setHeroImgUrl] = useState('');
-
-  useEffect(() => {
-    getS3PresignedUrl(1).then(setHeroImgUrl).catch(console.error);
-  }, []);
+  const heroImgUrl = getFrameUrl(1);
 
   return (
     <div className="static-fallback-container" id="overview">

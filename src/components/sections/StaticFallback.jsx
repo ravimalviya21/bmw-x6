@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { STATIC_FEATURES } from '../../constant';
-import { getS3FrameUrl } from '../../config/s3';
+import { getS3PresignedUrl } from '../../config/s3';
 
 const StaticFallback = ({ onScrollToBooking }) => {
+  const [heroImgUrl, setHeroImgUrl] = useState('');
+
+  useEffect(() => {
+    getS3PresignedUrl(1).then(setHeroImgUrl).catch(console.error);
+  }, []);
+
   return (
     <div className="static-fallback-container" id="overview">
       <div className="hero-text-content" style={{ opacity: 1 }}>
@@ -18,7 +24,7 @@ const StaticFallback = ({ onScrollToBooking }) => {
       </div>
 
       <img
-        src={getS3FrameUrl(1)}
+        src={heroImgUrl}
         alt="X6 Series Mountain Bike Side Profile"
         className="static-hero-img"
       />

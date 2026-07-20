@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { TOTAL_FRAMES } from '../constant';
-import { getS3FrameUrl } from '../config/s3';
+import { getBatchS3PresignedUrls } from '../config/s3';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -57,13 +57,24 @@ const useScrollCanvas = (containerRef, canvasRef) => {
       }
     };
 
-    for (let i = 1; i <= TOTAL_FRAMES; i++) {
-      const img = new Image();
-      img.src = getS3FrameUrl(i);
-      img.onload = handleImageLoad;
-      img.onerror = handleImageError;
-      loadedImages.push(img);
-    }
+    getBatchS3PresignedUrls(TOTAL_FRAMES)
+      .then((signedUrls) => {
+        if (!isMounted) return;
+        signedUrls.forEach((url) => {
+          const img = new Image();
+          img.src = url;
+          img.onload = handleImageLoad;
+          img.onerror = handleImageError;
+          loadedImages.push(img);
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to generate S3 presigned URLs", err);
+        if (isMounted) {
+          setLoadError(true);
+          setLoading(false);
+        }
+      });
 
     return () => {
       isMounted = false;

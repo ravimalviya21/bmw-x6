@@ -3,7 +3,7 @@ const baseUrl = import.meta.env.VITE_ASSETS_BASE_URL || '';
 export const getFrameUrl = (frameIndex) => {
   const frameString = String(frameIndex).padStart(3, '0');
   const batchFolder = frameIndex <= 116 ? 'batch-1' : 'batch-2';
-  return `${baseUrl}/assets/${batchFolder}/ezgif-frame-${frameString}.avif`;
+  return `${baseUrl}/${batchFolder}/ezgif-frame-${frameString}.avif`;
 };
 
 export const getFrameUrls = (totalFrames) => {

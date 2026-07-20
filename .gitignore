@@ -24,6 +24,5 @@ dist-ssr
 *.sw?
 .env
 
-# Ignore local batch image folders
-public/batch-1/
-public/batch-2/
+public/assets/
+.claude/

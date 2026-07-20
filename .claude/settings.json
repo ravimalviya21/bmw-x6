@@ -3,7 +3,10 @@
     "allow": [
       "Bash(node -e ' *)",
       "Bash(node --input-type=module -e ' *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(curl -s -u 619139291942983:DOlI5s-XbSwQzzNySFvS5dOiRbU https://api.cloudinary.com/v1_1/x2xum6xd/resources/image?max_results=10)",
+      "Bash(python3 -)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

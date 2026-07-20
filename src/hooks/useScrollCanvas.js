@@ -2,13 +2,17 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { TOTAL_FRAMES } from '../constant';
-import { getFrameUrls } from '../config/s3';
+import { getFrameUrl } from '../config/s3';
 
 gsap.registerPlugin(ScrollTrigger);
 
+const KEYFRAME_STRIDE = 8;
+
+const MAX_CONCURRENT_LOADS = 6;
+
 const useScrollCanvas = (containerRef, canvasRef) => {
   const activeFrameRef = useRef(0);
-  const [images, setImages] = useState([]);
+  const imagesRef = useRef([]);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -27,62 +31,21 @@ const useScrollCanvas = (containerRef, canvasRef) => {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      setLoading(false);
-      return;
+  const resolveDrawable = useCallback((index) => {
+    const frames = imagesRef.current;
+    if (frames[index]?.naturalWidth) return frames[index];
+
+    for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
+      if (frames[index - offset]?.naturalWidth) return frames[index - offset];
+      if (frames[index + offset]?.naturalWidth) return frames[index + offset];
     }
-
-    // A handful of dropped frames is survivable — the canvas just holds the
-    // previous one. Only bail out when enough of the sequence is missing that
-    // the animation would visibly break.
-    const FAILURE_TOLERANCE = Math.ceil(TOTAL_FRAMES * 0.05);
-
-    let settledCount = 0;
-    let failedCount = 0;
-    const loadedImages = [];
-    let isMounted = true;
-
-    const handleSettled = () => {
-      if (!isMounted) return;
-      settledCount++;
-      setProgress(Math.round((settledCount / TOTAL_FRAMES) * 100));
-
-      if (failedCount > FAILURE_TOLERANCE) {
-        setLoadError(true);
-        setLoading(false);
-        return;
-      }
-
-      if (settledCount === TOTAL_FRAMES) {
-        setImages(loadedImages);
-        setLoading(false);
-      }
-    };
-
-    const handleImageError = (event) => {
-      failedCount++;
-      console.error("Failed to load image frame", event?.target?.src);
-      handleSettled();
-    };
-
-    getFrameUrls(TOTAL_FRAMES).forEach((url) => {
-      const img = new Image();
-      img.src = url;
-      img.onload = handleSettled;
-      img.onerror = handleImageError;
-      loadedImages.push(img);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [prefersReducedMotion]);
+    return null;
+  }, []);
 
   const drawFrame = useCallback((index) => {
     const canvas = canvasRef.current;
-    const img = images[index];
-    if (!canvas || !img || !img.naturalWidth) return;
+    const img = resolveDrawable(index);
+    if (!canvas || !img) return;
 
     const ctx = canvas.getContext('2d');
 
@@ -116,10 +79,100 @@ const useScrollCanvas = (containerRef, canvasRef) => {
     const y = (canvas.height - h) / 2;
 
     ctx.drawImage(img, 0, 0, img.width, img.height, x, y, w, h);
-  }, [canvasRef, images]);
+  }, [canvasRef, resolveDrawable]);
 
   useEffect(() => {
-    if (loading || prefersReducedMotion || images.length === 0) return;
+    if (prefersReducedMotion) {
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    imagesRef.current = [];
+
+    const loadFrame = (index) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => {
+        console.error("Failed to load image frame", img.src);
+        resolve(false);
+      };
+      img.src = getFrameUrl(index + 1);
+      imagesRef.current[index] = img;
+    });
+
+    const drain = (takeNext, onSettled) => Promise.all(
+      Array.from({ length: MAX_CONCURRENT_LOADS }, async () => {
+        while (isMounted) {
+          const index = takeNext();
+          if (index === undefined) return;
+          const ok = await loadFrame(index);
+          if (!isMounted) return;
+          onSettled(index, ok);
+        }
+      })
+    );
+
+    const keyframes = [];
+    for (let i = 0; i < TOTAL_FRAMES; i += KEYFRAME_STRIDE) keyframes.push(i);
+    if (keyframes[keyframes.length - 1] !== TOTAL_FRAMES - 1) keyframes.push(TOTAL_FRAMES - 1);
+
+    const failureTolerance = Math.ceil(keyframes.length * 0.05);
+
+    const remaining = new Set();
+    for (let i = 0; i < TOTAL_FRAMES; i++) {
+      if (!keyframes.includes(i)) remaining.add(i);
+    }
+
+    const loadRemaining = () => {
+      const takeNearest = () => {
+        let nearest;
+        let bestDistance = Infinity;
+        for (const index of remaining) {
+          const distance = Math.abs(index - activeFrameRef.current);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            nearest = index;
+          }
+        }
+        if (nearest !== undefined) remaining.delete(nearest);
+        return nearest;
+      };
+
+      drain(takeNearest, (index) => {
+        if (index === activeFrameRef.current) drawFrame(index);
+      });
+    };
+
+    let settled = 0;
+    let failed = 0;
+    const pending = [...keyframes];
+
+    drain(
+      () => pending.shift(),
+      (index, ok) => {
+        settled++;
+        if (!ok) failed++;
+        setProgress(Math.round((settled / keyframes.length) * 100));
+      }
+    ).then(() => {
+      if (!isMounted) return;
+      if (failed > failureTolerance) {
+        setLoadError(true);
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
+      loadRemaining();
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [prefersReducedMotion, drawFrame]);
+
+  useEffect(() => {
+    if (loading || prefersReducedMotion) return;
 
     drawFrame(0);
 
@@ -270,7 +323,7 @@ const useScrollCanvas = (containerRef, canvasRef) => {
       if (mainTimeline.scrollTrigger) mainTimeline.scrollTrigger.kill();
       mainTimeline.kill();
     };
-  }, [containerRef, loading, prefersReducedMotion, images, drawFrame]);
+  }, [containerRef, loading, prefersReducedMotion, drawFrame]);
 
   const handleScrollToBooking = (e) => {
     e.preventDefault();

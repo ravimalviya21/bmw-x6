@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Ignore local batch image folders
+public/batch-1/
+public/batch-2/

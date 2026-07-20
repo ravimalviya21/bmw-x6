@@ -1,9 +1,9 @@
-const baseUrl = import.meta.env.VITE_ASSETS_BASE_URL || 'https://bmw-x6.s3.ap-south-1.amazonaws.com';
+const baseUrl = import.meta.env.VITE_ASSETS_BASE_URL || '';
 
 export const getFrameUrl = (frameIndex) => {
   const frameString = String(frameIndex).padStart(3, '0');
-  const batchFolder = frameIndex <= 151 ? 'batch-1' : 'batch-2';
-  return `${baseUrl}/assets/${batchFolder}/ezgif-frame-${frameString}.jpg`;
+  const batchFolder = frameIndex <= 116 ? 'batch-1' : 'batch-2';
+  return `${baseUrl}/assets/${batchFolder}/ezgif-frame-${frameString}.avif`;
 };
 
 export const getFrameUrls = (totalFrames) => {
@@ -14,9 +14,9 @@ export const getFrameUrls = (totalFrames) => {
   return urls;
 };
 
-const S3_CONFIG = {
+const ASSETS_CONFIG = {
   getFrameUrl,
   getFrameUrls
 };
 
-export default S3_CONFIG;
+export default ASSETS_CONFIG;

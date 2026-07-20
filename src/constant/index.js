@@ -1,4 +1,4 @@
-export const TOTAL_FRAMES = 239;
+export const TOTAL_FRAMES = 204;
 
 export const FEATURE_CALLOUTS = [
   {
